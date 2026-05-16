@@ -1,0 +1,9 @@
+<library path="test_traj_panel">
+  <class name="test_traj_panel/TestTrajPanel"
+         type="test_traj_panel::TestTrajPanel"
+         base_class_type="rviz_common::Panel">
+    <description>
+      Panel for publishing sinusoidal test trajectories (PoseStamped, TF child frame, and Path trace).
+    </description>
+  </class>
+</library>
