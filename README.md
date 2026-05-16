@@ -14,7 +14,8 @@ From your ROS 2 workspace:
 
 ```bash
 cd /path/to/your_ws
-source /opt/ros/$ROS_DISTRO/setup.bash
+# Replace jazzy with humble / rolling / etc., matching your install prefix:
+source /opt/ros/jazzy/setup.bash
 colcon build --packages-select test_traj_panel
 source install/setup.bash
 ```
@@ -43,26 +44,27 @@ The path message accumulates poses while running (last **5000** poses kept).
 
 ## Motion model
 
-For each axis *i* ∈ {X, Y, Z}, position is offset from the configurable **zero pose** by:
+For **each axis** (X, Y, Z), the offset from the **zero pose** along that axis uses the same scalar sinusoid pattern:
 
-\[
-\Delta_i(t) = A_i \sin(2\pi f_i t + \phi_i)
-\]
+```text
+offset_axis(t) = magnitude * sin(2 * pi * frequency * time + phase_axis)
+```
 
-- \(A_i\): magnitude (meters); negative magnitude flips phase.
-- \(f_i\): frequency (Hz); **\(f_i \le 0\)** disables oscillation on that axis (offset is zero).
+- **magnitude**: amplitude in meters (negative magnitude flips the sign of the motion).
+- **frequency**: Hz; **`frequency <= 0`** disables oscillation on that axis (offset stays zero).
+- **phase_axis**: constant phase for that axis (see below).
 
-Phase offsets (fixed):
+Fixed phases:
 
-| Axis | \(\phi_i\) |
-|------|------------|
-| X | \(0\) |
-| Y | \(\pi/2\) |
-| Z | \(0\) |
+| Axis | Phase |
+|------|--------|
+| X | `0` radians |
+| Y | `pi/2` radians (one quarter turn; same as 90 degrees) |
+| Z | `0` radians |
 
-So **equal magnitude and frequency on X and Y** traces a **circle** in the XY plane. **Different frequency ratios** produce **Lissajous** curves in XY (and similar behavior when Z is excited). Z shares the same phase reference as X for XZ / 3D combinations.
+With these phases, **equal magnitude and frequency on X and Y** traces a **circle** in the XY plane; **different X/Y frequency ratios** give **Lissajous** figures in XY. **Z** uses the same phase reference as **X**, which shapes XZ and fully 3D paths when Z is moving too.
 
-Orientation is constant: quaternion from the panel **roll / pitch / yaw** (radians) applied at the zero pose (defaults: zero translation, identity rotation).
+Orientation is held fixed: the quaternion comes from the panel **roll / pitch / yaw** fields (radians) relative to the zero pose (defaults are zero translation and identity rotation).
 
 ## Visualizing in RViz
 
