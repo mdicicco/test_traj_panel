@@ -21,7 +21,9 @@ set(TEST_TRAJ_PANEL_QT_WIDGETS_LIB Qt5::Widgets)
 
 set(CMAKE_AUTOMOC ON)
 
+# Header must be listed so AUTOMOC generates moc code for Q_OBJECT (otherwise vtable is undefined).
 add_library(${PROJECT_NAME} SHARED
+  include/test_traj_panel/test_traj_panel.hpp
   src/test_traj_panel.cpp
 )
 
@@ -40,10 +42,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   ${TEST_TRAJ_PANEL_QT_WIDGETS_LIB}
 )
 
-set_target_properties(${PROJECT_NAME} PROPERTIES
-  CXX_VISIBILITY_PRESET hidden
-  VISIBILITY_INLINES_HIDDEN TRUE)
-
 pluginlib_export_plugin_description_file(rviz_common plugin_description.xml)
 
 install(TARGETS ${PROJECT_NAME}
@@ -57,6 +55,14 @@ install(DIRECTORY include/
 )
 
 install(FILES plugin_description.xml
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY rviz
   DESTINATION share/${PROJECT_NAME}
 )
 

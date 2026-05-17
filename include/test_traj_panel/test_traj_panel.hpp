@@ -1,10 +1,10 @@
 #ifndef TEST_TRAJ_PANEL__TEST_TRAJ_PANEL_HPP_
 #define TEST_TRAJ_PANEL__TEST_TRAJ_PANEL_HPP_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
-#include <QTimer>
 #include <QWidget>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -40,7 +40,10 @@ private:
 
   std::string resolveParentFrame() const;
   void ensurePublishers();
+  void startPublishTimer();
+  void stopPublishTimer();
   geometry_msgs::msg::PoseStamped makePose(double t) const;
+  void publishTrajectorySample();
 
   rclcpp::Node::WeakPtr node_weak_;
   rclcpp::Clock::SharedPtr clock_;
@@ -52,7 +55,7 @@ private:
   std::string pose_topic_cached_;
   std::string path_topic_cached_;
 
-  QTimer * publish_timer_{nullptr};
+  rclcpp::TimerBase::SharedPtr publish_timer_;
 
   QLineEdit * topic_edit_{nullptr};
   QLineEdit * path_topic_edit_{nullptr};
@@ -77,8 +80,7 @@ private:
   QPushButton * start_stop_btn_{nullptr};
 
   bool running_{false};
-  double trajectory_time_{0.0};
-  rclcpp::Time last_ros_time_;
+  uint64_t trajectory_step_{0};
   nav_msgs::msg::Path path_msg_;
 
   static constexpr size_t kMaxPathPoints = 5000;

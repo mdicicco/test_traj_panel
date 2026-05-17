@@ -20,11 +20,23 @@ colcon build --packages-select test_traj_panel
 source install/setup.bash
 ```
 
-## Load the panel in RViz2
+## Quick start (panel-only RViz)
 
-1. Start RViz2 (`rviz2`).
-2. **Panels → Add New Panel → test_traj_panel → TestTrajPanel** (class id `test_traj_panel/TestTrajPanel`).
-3. Configure topics, frames, oscillation parameters, then press **Start**. Press **Stop** to halt publishing.
+```bash
+source install/setup.bash
+ros2 launch test_traj_panel test_traj_panel.launch.py
+```
+
+This opens RViz with the **Test Trajectory** panel, **Path** (`/test_traj_panel/path`), **Pose** (`/curent_target`), **TF**, and **Grid** displays preconfigured.
+
+## Load the panel in other RViz sessions
+
+`sub_sim` launch files that start RViz merge `test_traj_panel/rviz/overlay.rviz` into each package’s base `.rviz` config at launch time (panel + path + pose displays).
+
+You can still add the panel manually:
+
+1. **Panels → Add New Panel → test_traj_panel → TestTrajPanel**
+2. Configure topics, frames, oscillation parameters, then press **Start**. Press **Stop** to halt publishing.
 
 The plugin uses RViz’s shared ROS node and clock (`use_sim_time` follows RViz when enabled).
 

@@ -1,7 +1,8 @@
 #include "test_traj_panel/test_traj_panel.hpp"
 
-#include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -75,9 +76,6 @@ void TestTrajPanel::onInitialize()
   auto node = ros_node_abs->get_raw_node();
   node_weak_ = node;
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(node);
-
-  publish_timer_ = new QTimer(this);
-  connect(publish_timer_, &QTimer::timeout, this, &TestTrajPanel::onPublishTick);
 }
 
 void TestTrajPanel::setupUi()
@@ -266,6 +264,36 @@ geometry_msgs::msg::PoseStamped TestTrajPanel::makePose(double t) const
   return out;
 }
 
+void TestTrajPanel::startPublishTimer()
+{
+  stopPublishTimer();
+
+  auto node = node_weak_.lock();
+  if (!node || !clock_) {
+    return;
+  }
+
+  double rate_hz = publish_rate_hz_->value();
+  if (rate_hz <= 0.0) {
+    rate_hz = 10.0;
+  }
+
+  const auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::duration<double>(1.0 / rate_hz));
+
+  publish_timer_ = node->create_timer(
+    period,
+    [this]() { onPublishTick(); });
+}
+
+void TestTrajPanel::stopPublishTimer()
+{
+  if (publish_timer_) {
+    publish_timer_->cancel();
+    publish_timer_.reset();
+  }
+}
+
 void TestTrajPanel::onStartStopClicked()
 {
   if (!running_) {
@@ -277,20 +305,16 @@ void TestTrajPanel::onStartStopClicked()
     }
 
     path_msg_.poses.clear();
-    trajectory_time_ = 0.0;
-    last_ros_time_ = rclcpp::Time(0, 0, clock_->get_clock_type());
+    trajectory_step_ = 0;
 
-    double rate = publish_rate_hz_->value();
-    if (rate <= 0.0) {
-      rate = 10.0;
-    }
-    const int interval_ms = static_cast<int>(std::clamp(std::llround(1000.0 / rate), 1LL, 86400000LL));
-
-    publish_timer_->start(interval_ms);
+    startPublishTimer();
     running_ = true;
     start_stop_btn_->setText("Stop");
+
+    // Publish immediately so pose/path/TF start aligned at t = 0.
+    publishTrajectorySample();
   } else {
-    publish_timer_->stop();
+    stopPublishTimer();
     running_ = false;
     start_stop_btn_->setText("Start");
   }
@@ -301,53 +325,56 @@ void TestTrajPanel::onPublishTick()
   if (!running_) {
     return;
   }
+  publishTrajectorySample();
+}
 
+void TestTrajPanel::publishTrajectorySample()
+{
   auto node = node_weak_.lock();
   if (!node || !clock_ || !tf_broadcaster_ || !pose_pub_ || !path_pub_) {
     return;
   }
 
+  double rate_hz = publish_rate_hz_->value();
+  if (rate_hz <= 0.0) {
+    rate_hz = 10.0;
+  }
+
+  const double trajectory_time = static_cast<double>(trajectory_step_) / rate_hz;
+  ++trajectory_step_;
+
   const rclcpp::Time now = clock_->now();
-  double dt = 0.0;
-  if (last_ros_time_.nanoseconds() != 0) {
-    dt = (now - last_ros_time_).seconds();
-  }
-  last_ros_time_ = now;
+  const std::string frame = resolveParentFrame();
 
-  if (dt > 0.0 && dt < 5.0) {
-    trajectory_time_ += dt;
-  }
-
-  const std::string parent = resolveParentFrame();
-
-  geometry_msgs::msg::PoseStamped pose = makePose(trajectory_time_);
+  geometry_msgs::msg::PoseStamped pose = makePose(trajectory_time);
   pose.header.stamp = now;
-  pose.header.frame_id = parent;
+  pose.header.frame_id = frame;
 
-  pose_pub_->publish(pose);
-
-  path_msg_.header.stamp = now;
-  path_msg_.header.frame_id = parent;
-  path_msg_.poses.push_back(pose);
-  if (path_msg_.poses.size() > kMaxPathPoints) {
-    path_msg_.poses.erase(path_msg_.poses.begin());
-  }
-  path_pub_->publish(path_msg_);
-
-  geometry_msgs::msg::TransformStamped tf;
-  tf.header.stamp = now;
-  tf.header.frame_id = parent;
   std::string child = target_frame_edit_->text().trimmed().toStdString();
   if (child.empty()) {
     child = "test_traj_target";
   }
+
+  geometry_msgs::msg::TransformStamped tf;
+  tf.header.stamp = now;
+  tf.header.frame_id = frame;
   tf.child_frame_id = child;
   tf.transform.translation.x = pose.pose.position.x;
   tf.transform.translation.y = pose.pose.position.y;
   tf.transform.translation.z = pose.pose.position.z;
   tf.transform.rotation = pose.pose.orientation;
-
   tf_broadcaster_->sendTransform(tf);
+
+  pose_pub_->publish(pose);
+
+  path_msg_.header.stamp = now;
+  path_msg_.header.frame_id = frame;
+  path_msg_.poses.push_back(pose);
+  if (path_msg_.poses.size() > kMaxPathPoints) {
+    const size_t excess = path_msg_.poses.size() - kMaxPathPoints;
+    path_msg_.poses.erase(path_msg_.poses.begin(), path_msg_.poses.begin() + excess);
+  }
+  path_pub_->publish(path_msg_);
 }
 
 }  // namespace test_traj_panel
